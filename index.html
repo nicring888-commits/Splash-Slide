@@ -113,6 +113,14 @@ button{ font:inherit; }
 .drops{ display:flex; gap:1px; }
 .drops svg{ width:11px; height:11px; fill:rgba(255,255,255,.35); }
 .drops svg.on{ fill:#9be7ff; }
+.card.locked{ filter:grayscale(.75) brightness(.5); cursor:default; }
+.card.locked:hover{ transform:none; }
+.card .lock-ov{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.15); }
+.card .lock-ov svg{ width:34px; height:34px; fill:#fff; opacity:.95; filter:drop-shadow(0 2px 4px rgba(0,0,0,.5)); }
+.wprog{ background:rgba(255,255,255,.28); border-radius:999px; padding:2px 9px; font-size:.72rem; font-weight:700; }
+.card.boss{ box-shadow:0 8px 0 rgba(120,10,10,.6),0 14px 24px rgba(0,0,0,.4), 0 0 0 3px #ff5b5b inset; }
+.boss-badge{ position:absolute; top:6px; right:6px; font-size:1.25rem; filter:drop-shadow(0 2px 3px rgba(0,0,0,.5)); }
+.menu-btn.locked-btn{ filter:grayscale(.55) brightness(.8); }
 .howto{ margin:2px 4px 6px; color:#cfe9fb; font-size:.95rem; max-width:52ch; text-shadow:0 2px 6px rgba(0,0,0,.5); }
 
 .row-top{ display:flex; align-items:center; gap:10px; }
@@ -217,9 +225,16 @@ button{ font:inherit; }
   </div>
 </section>
 
+<section id="worlds" class="screen hidden" aria-label="Weltauswahl">
+  <div class="menu-inner">
+    <div class="row-top"><button class="round" id="worldsBack" aria-label="Zurück">←</button><h2 class="sect">Wähle deine Welt</h2></div>
+    <div id="worldGrid" class="grid"></div>
+  </div>
+</section>
+
 <section id="menu" class="screen hidden" aria-label="Levelauswahl">
   <div class="menu-inner">
-    <div class="row-top"><button class="round" id="levelsBack" aria-label="Zurück">←</button><h2 class="sect">Wähle deine Rutsche</h2></div>
+    <div class="row-top"><button class="round" id="levelsBack" aria-label="Zurück">←</button><h2 class="sect" id="levelsTitle">Welt</h2></div>
     <div id="levelGrid" class="grid"></div>
     <p class="howto">Zum Steuern den Finger nach links und rechts ziehen. Am Computer gehen die Pfeiltasten oder A und D. Mit Esc pausierst du.</p>
   </div>
@@ -304,15 +319,45 @@ const THEMES = {
 };
 for (const k in THEMES) THEMES[k] = Object.assign({}, THEME_BASE, THEMES[k]);
 
-/* ================= Level ================= */
-const LEVELS = [
- { name:'Plantschbecken',  sub:'Gemütlicher Einstieg',  theme:'lagoon',  len:480,  v0:2900, v1:4100, curve:1.5, curveP:.40, gap:[1.5,2.2],  gateW:1.05, pads:.35, seed:101, diff:1, duckW:[1.4,2.0], mix:{single:6,dbl:3,gate:2} },
- { name:'Palmenbucht',     sub:'Kurven und erste Tore', theme:'jungle',  len:680,  v0:3300, v1:4800, curve:2.2, curveP:.50, gap:[1.25,1.9], gateW:.95,  pads:.30, seed:202, diff:2, duckW:[1.4,2.0], mix:{single:4,dbl:3,gate:3,slalom:1} },
- { name:'Kristallgrotte',  sub:'Enge Tore, freche Enten', theme:'crystal', len:880, v0:3700, v1:5400, curve:2.8, curveP:.55, gap:[1.1,1.7],  gateW:.85,  pads:.30, seed:303, diff:3, duckW:[1.5,2.2], mix:{single:3,dbl:3,gate:3,slalom:2,duck:2} },
- { name:'Vulkanflitzer',   sub:'Heiß und schnell',      theme:'volcano', len:1080, v0:4200, v1:6200, curve:3.3, curveP:.60, gap:[1.0,1.5],  gateW:.78,  pads:.25, seed:404, diff:3, duckW:[1.7,2.5], mix:{single:3,dbl:3,gate:3,slalom:3,duck:3} },
- { name:'Mitternachtsflut',sub:'Leuchtende Kurven',     theme:'night',   len:1280, v0:4700, v1:7000, curve:3.8, curveP:.65, gap:[.9,1.3],   gateW:.72,  pads:.25, seed:505, diff:4, duckW:[1.8,2.6], mix:{single:3,dbl:3,gate:3,slalom:3,duck:3} },
- { name:'Tsunami',         sub:'Nur für Profis',        theme:'storm',   len:1500, v0:5200, v1:8000, curve:4.4, curveP:.70, gap:[.8,1.15],  gateW:.66,  pads:.20, seed:606, diff:5, duckW:[2.0,2.8], mix:{single:2,dbl:3,gate:4,slalom:4,duck:3} }
+/* ================= Welten & Level ================= */
+const LEVELS_PER_WORLD = 10, WORLD_COUNT = 6;
+const WORLD_TEMPLATES = [
+ { name:'Plantschbecken',  theme:'lagoon',  len:480,  v0:2900, v1:4100, curve:1.5, curveP:.40, gap:[1.5,2.2],  gateW:1.05, pads:.35, seed:101, duckW:[1.4,2.0], mix:{single:6,dbl:3,gate:2} },
+ { name:'Palmenbucht',     theme:'jungle',  len:680,  v0:3300, v1:4800, curve:2.2, curveP:.50, gap:[1.25,1.9], gateW:.95,  pads:.30, seed:202, duckW:[1.4,2.0], mix:{single:4,dbl:3,gate:3,slalom:1} },
+ { name:'Kristallgrotte',  theme:'crystal', len:880,  v0:3700, v1:5400, curve:2.8, curveP:.55, gap:[1.1,1.7],  gateW:.85,  pads:.30, seed:303, duckW:[1.5,2.2], mix:{single:3,dbl:3,gate:3,slalom:2,duck:2} },
+ { name:'Vulkanflitzer',   theme:'volcano', len:1080, v0:4200, v1:6200, curve:3.3, curveP:.60, gap:[1.0,1.5],  gateW:.78,  pads:.25, seed:404, duckW:[1.7,2.5], mix:{single:3,dbl:3,gate:3,slalom:3,duck:3} },
+ { name:'Mitternachtsflut',theme:'night',   len:1280, v0:4700, v1:7000, curve:3.8, curveP:.65, gap:[.9,1.3],   gateW:.72,  pads:.25, seed:505, duckW:[1.8,2.6], mix:{single:3,dbl:3,gate:3,slalom:3,duck:3} },
+ { name:'Tsunami',         theme:'storm',   len:1500, v0:5200, v1:8000, curve:4.4, curveP:.70, gap:[.8,1.15],  gateW:.66,  pads:.20, seed:606, duckW:[2.0,2.8], mix:{single:2,dbl:3,gate:4,slalom:4,duck:3} }
 ];
+const SUBLABELS = ['Einstieg','Aufwärmen','Übung','Herausforderung','Schwieriger','Anspruchsvoll','Hart','Sehr hart','Fast geschafft','BOSS'];
+const SIMPLE_MIX = {single:6,dbl:3,gate:2};
+const MEDIUM_MIX = {single:4,dbl:3,gate:3,slalom:2};
+function buildWorldLevels(t, w){
+  const levels=[];
+  for (let l=0; l<LEVELS_PER_WORLD; l++){
+    const boss = l===LEVELS_PER_WORLD-1, tt = l/(LEVELS_PER_WORLD-1);
+    const mixBase = tt<0.3 ? SIMPLE_MIX : tt<0.65 ? MEDIUM_MIX : t.mix;
+    const cfg = {
+      name: t.name+' – Level '+(l+1), sub: SUBLABELS[l], theme: t.theme,
+      worldIndex:w, levelIndex:l, isBoss:boss,
+      len: Math.round(lerp(t.len*0.45, boss ? t.len*1.15 : t.len, tt)),
+      v0: lerp(t.v0*.55, t.v0, tt), v1: lerp(t.v1*.55, t.v1, tt),
+      curve: lerp(t.curve*.45, t.curve, tt), curveP: lerp(t.curveP*.55, t.curveP, tt),
+      gap:[lerp(t.gap[0]*1.3,t.gap[0],tt), lerp(t.gap[1]*1.3,t.gap[1],tt)],
+      gateW: Math.min(1.3, lerp(t.gateW*1.25, t.gateW, tt)),
+      pads: lerp(t.pads*.7, t.pads, tt),
+      seed: t.seed*100+l, diff: Math.max(1, Math.min(5, Math.round(1+tt*4))),
+      duckW:[lerp(t.duckW[0]*.6,t.duckW[0],tt), lerp(t.duckW[1]*.6,t.duckW[1],tt)],
+      mix: mixBase
+    };
+    if (boss){ const bm=Object.assign({},cfg.mix); bm.duck=(bm.duck||0)+2; bm.slalom=(bm.slalom||0)+1; cfg.mix=bm; }
+    levels.push(cfg);
+  }
+  return levels;
+}
+const WORLDS = WORLD_TEMPLATES.map((t,w)=>({ name:t.name, theme:t.theme, levels: buildWorldLevels(t,w) }));
+function gIdx(w,l){ return w*LEVELS_PER_WORLD+l; }
+function nextLevelIndex(idx){ const w=Math.floor(idx/LEVELS_PER_WORLD), l=idx%LEVELS_PER_WORLD; if (l<LEVELS_PER_WORLD-1) return idx+1; if (w<WORLD_COUNT-1) return (w+1)*LEVELS_PER_WORLD; return null; }
 
 /* ================= Bälle (Shop) ================= */
 const SKINS = [
@@ -339,7 +384,13 @@ if (!save.owned.includes(0)) save.owned.push(0);
 if (!(save.skin>=0 && save.skin<SKINS.length)) save.skin=0;
 if (typeof save.coins!=='number') save.coins=0;
 if (typeof save.endlessBest!=='number') save.endlessBest=0;
+if (!save._worldsSchema){ save.stars=[]; save.best=[]; save._worldsSchema=true; }
 function persist(){ try { localStorage.setItem(SAVE_KEY, JSON.stringify(save)); } catch(e){} }
+function levelCompleted(idx){ return (save.stars[idx]||0) > 0; }
+function worldCompleted(w){ for (let l=0;l<LEVELS_PER_WORLD;l++) if (!levelCompleted(gIdx(w,l))) return false; return true; }
+function worldUnlocked(w){ return w===0 || worldCompleted(w-1); }
+function levelUnlocked(w,l){ if (l>0) return levelCompleted(gIdx(w,l-1)); return worldUnlocked(w); }
+function allLevelsCompleted(){ for (let w=0;w<WORLD_COUNT;w++) if (!worldCompleted(w)) return false; return true; }
 
 /* ================= Muster-Generator (geteilt: Level + Endless) ================= */
 function makePatterns(rng, add, cfg){
@@ -437,7 +488,7 @@ function lerpCfg(a,b,t){
 }
 function getEndlessCfg(distM){
   const t = clamp(distM/1800,0,1);
-  const c = lerpCfg(LEVELS[0], LEVELS[5], t);
+  const c = lerpCfg(WORLD_TEMPLATES[0], WORLD_TEMPLATES[5], t);
   c.diff = 1+t*4;
   c.speedNow = clamp(3000+distM*3.2, 3000, 9200);
   const mix = t<.3 ? {single:6,dbl:3,gate:2} : t<.6 ? {single:4,dbl:3,gate:3,slalom:2} : {single:2,dbl:3,gate:3,slalom:3,duck:3};
@@ -508,7 +559,7 @@ function endlessMaintain(){
 
 /* ================= Zustand ================= */
 const G = {
-  mode:'menu', runType:'level', level:LEVELS[0], th:THEMES.lagoon, li:0, segs:[], segBase:0, N:0, finishZ:0, coinTotal:0,
+  mode:'menu', runType:'level', level:WORLDS[0].levels[0], th:THEMES.lagoon, li:0, segs:[], segBase:0, N:0, finishZ:0, coinTotal:0,
   z:0, px:0, tx:0, speed:0, time:0, tm:0, hearts:3, coins:0, hits:0, invul:0, boost:0, shake:0, hop:0, rot:0, bgX:0,
   cd:0, cdN:-1, endT:0, prevMode:'', demoIdx:0, fade:1, fadeTo:0, bs:null, sprayAcc:0, fxAcc:0, toastT:0,
   curveGen:{mode:'straight',pos:0}
@@ -519,16 +570,16 @@ function resetRun(){
   G.z=START_Z; G.px=G.tx=0; G.speed=0; G.time=0; G.hearts=3; G.coins=0; G.hits=0; G.invul=0; G.boost=0;
   G.shake=0; G.hop=0; G.rot=0; G.bgX=0; G.endT=0; G.sprayAcc=0; G.fxAcc=0; G.cdN=-1;
 }
-function loadLevel(i){
-  const L = LEVELS[i];
+function loadLevelCfg(L, idx){
   G.runType='level'; G.segBase=0;
   Object.assign(G, buildLevel(L));
-  G.li=i; G.level=L; G.th=THEMES[L.theme];
+  G.li=idx; G.level=L; G.th=THEMES[L.theme];
   G.th.starPts = G.th.starPts || Array.from({length:70},(_,k)=>[hash(k*1.7),hash(k*3.3+9),0.6+hash(k*5.1)*1.4,hash(k*7.7)*6]);
   resetRun();
 }
 function loadDemo(){
-  loadLevel(G.demoIdx % LEVELS.length); G.demoIdx++;
+  const w = G.demoIdx % WORLD_COUNT;
+  loadLevelCfg(WORLDS[w].levels[0], -1); G.demoIdx++;
   G.mode='menu'; G.speed=2200;
 }
 
@@ -1020,6 +1071,7 @@ const STAR='<svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6.1 6.6.8-4.9 4.6 1.3 
 const DROPI='<svg viewBox="0 0 24 24"><path d="M12 2c3.5 4.6 6 7.7 6 11a6 6 0 0 1-12 0c0-3.3 2.5-6.4 6-11z"/></svg>';
 const CHECK='<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
 const CROSS='<svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>';
+const LOCK='<svg viewBox="0 0 24 24"><path d="M7 10V7a5 5 0 0 1 10 0v3h1a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1h1zm2 0h6V7a3 3 0 0 0-6 0v3z"/></svg>';
 const hudCache={h:-1,c:-1,t:'',p:-1,d:-1};
 function updateHud(){
   if (G.mode==='menu'||G.mode==='result') return;
@@ -1047,22 +1099,45 @@ function flash(){ const el=$('flash'); el.classList.remove('on'); void el.offset
 function show(id){ $(id).classList.remove('hidden'); }
 function hide(id){ $(id).classList.add('hidden'); }
 
-function buildMainMenu(){ $('mmCoins').textContent=fmtInt(save.coins); }
+function buildMainMenu(){
+  $('mmCoins').textContent=fmtInt(save.coins);
+  const unlocked=allLevelsCompleted(), btn=$('btnEndless');
+  btn.classList.toggle('locked-btn', !unlocked);
+  btn.textContent = unlocked ? 'ENDLESS' : '🔒 ENDLESS';
+}
 
-function buildMenu(){
+function buildWorlds(){
+  const grid=$('worldGrid'); grid.innerHTML='';
+  WORLDS.forEach((wd,w)=>{
+    const unlocked=worldUnlocked(w), th=THEMES[wd.theme];
+    const done=wd.levels.reduce((n,_,l)=>n+(levelCompleted(gIdx(w,l))?1:0),0);
+    const b=document.createElement('button'); b.type='button'; b.className='card'+(unlocked?'':' locked'); b.disabled=!unlocked;
+    b.setAttribute('aria-label','Welt '+(w+1)+': '+wd.name+(unlocked?', '+done+' von '+LEVELS_PER_WORLD+' Leveln geschafft':', gesperrt'));
+    b.style.cssText='--s0:'+th.sky[0]+';--s2:'+th.sky[2]+';--g0:'+th.ground[0]+';--g1:'+th.ground[1]+';--w0:'+th.water[0]+';--w1:'+th.water[1]+';--wl:'+th.wall[0]+';--ball:'+SKINS[save.skin].b;
+    b.innerHTML='<div class="bg"></div><i class="sl w"></i><i class="sl a"></i><i class="mb"></i>'+
+      '<div class="info"><div class="top"><span class="num">'+(w+1)+'</span>'+(unlocked?'<span class="wprog">'+done+'/'+LEVELS_PER_WORLD+'</span>':'')+'</div>'+
+      '<div><div class="name">'+wd.name+'</div><div class="sub">'+(unlocked?done+' von '+LEVELS_PER_WORLD+' Leveln geschafft':'Gesperrt')+'</div></div></div>'+
+      (unlocked?'':'<div class="lock-ov">'+LOCK+'</div>');
+    if (unlocked) b.addEventListener('click',()=>openWorldLevels(w));
+    grid.appendChild(b);
+  });
+}
+function buildLevelGrid(w){
+  $('levelsTitle').textContent='Welt '+(w+1)+': '+WORLDS[w].name;
   const grid=$('levelGrid'); grid.innerHTML='';
   const sk=SKINS[save.skin];
-  LEVELS.forEach((L,i)=>{
-    const th=THEMES[L.theme], sv=save.stars[i]||0, best=save.best[i];
-    const b=document.createElement('button'); b.type='button'; b.className='card';
-    b.setAttribute('aria-label','Rutsche '+(i+1)+': '+L.name+', '+sv+' von 3 Sternen');
+  WORLDS[w].levels.forEach((L,l)=>{
+    const idx=gIdx(w,l), unlocked=levelUnlocked(w,l), sv=save.stars[idx]||0, best=save.best[idx], th=THEMES[L.theme];
+    const b=document.createElement('button'); b.type='button'; b.className='card'+(unlocked?'':' locked')+(L.isBoss?' boss':''); b.disabled=!unlocked;
+    b.setAttribute('aria-label','Level '+(l+1)+(L.isBoss?' Boss':'')+(unlocked?', '+sv+' von 3 Sternen':', gesperrt'));
     b.style.cssText='--s0:'+th.sky[0]+';--s2:'+th.sky[2]+';--g0:'+th.ground[0]+';--g1:'+th.ground[1]+';--w0:'+th.water[0]+';--w1:'+th.water[1]+';--wl:'+th.wall[0]+';--ball:'+sk.b;
     let stars='',drops=''; for (let k=0;k<3;k++) stars+=STAR.replace('<svg','<svg class="'+(k<sv?'on':'')+'"');
     for (let k=0;k<5;k++) drops+=DROPI.replace('<svg','<svg class="'+(k<L.diff?'on':'')+'"');
     b.innerHTML='<div class="bg"></div><i class="sl w"></i><i class="sl a"></i><i class="mb"></i>'+
-      '<div class="info"><div class="top"><span class="num">'+(i+1)+'</span><span class="stars">'+stars+'</span></div>'+
-      '<div><div class="name">'+L.name+'</div><div class="sub">'+L.sub+'</div><div class="meta"><span class="drops" title="Schwierigkeit">'+drops+'</span><span>'+(best?fmtTime(best):'')+'</span></div></div></div>';
-    b.addEventListener('click',()=>startLevel(i));
+      '<div class="info"><div class="top"><span class="num">'+(l+1)+'</span>'+(unlocked?'<span class="stars">'+stars+'</span>':'')+'</div>'+
+      '<div><div class="name">'+(L.isBoss?'BOSS':'Level '+(l+1))+'</div><div class="sub">'+L.sub+'</div>'+(unlocked?'<div class="meta"><span class="drops" title="Schwierigkeit">'+drops+'</span><span>'+(best?fmtTime(best):'')+'</span></div>':'')+'</div></div>'+
+      (unlocked?(L.isBoss?'<div class="boss-badge">👑</div>':''):'<div class="lock-ov">'+LOCK+'</div>');
+    if (unlocked) b.addEventListener('click',()=>startLevel(idx));
     grid.appendChild(b);
   });
   $('progBall').style.setProperty('--ball',sk.b);
@@ -1091,16 +1166,20 @@ function buildSettings(){
 }
 function buildHearts(){ $('hearts').innerHTML=HEART+HEART+HEART; hudCache.h=-1; hudCache.c=-1; hudCache.t=''; hudCache.p=-1; hudCache.d=-1; }
 
-function startLevel(i){
+function startLevel(idx){
+  const w=Math.floor(idx/LEVELS_PER_WORLD), l=idx%LEVELS_PER_WORLD;
+  if (!levelUnlocked(w,l)){ sfx.click(); showToast('Level gesperrt'); return; }
   ensureAudio(); stopWind();
-  loadLevel(i); parts.length=0;
+  const L = WORLDS[w].levels[l];
+  loadLevelCfg(L, idx); parts.length=0;
   G.mode='countdown'; G.cd=3.6; G.cdN=-1; G.fade=0; G.fadeTo=0;
-  buildHearts(); hide('mainMenu'); hide('menu'); hide('shop'); hide('settings'); hide('pause'); hide('result'); show('hud'); show('cd');
-  $('cdTitle').textContent='Rutsche '+(i+1)+': '+G.level.name;
+  buildHearts(); hide('mainMenu'); hide('worlds'); hide('menu'); hide('shop'); hide('settings'); hide('pause'); hide('result'); show('hud'); show('cd');
+  $('cdTitle').textContent='Welt '+(w+1)+' – Level '+(l+1)+(L.isBoss?' 👑 BOSS':'');
   $('cdHint').textContent=(window.matchMedia&&matchMedia('(pointer:coarse)').matches)?'Ziehe den Finger nach links und rechts':'Steuere mit den Pfeiltasten oder A und D';
   updateHud();
 }
 function startEndless(){
+  if (!allLevelsCompleted()){ sfx.click(); showToast('Schließe zuerst alle Level ab!'); return; }
   ensureAudio(); stopWind();
   G.runType='endless'; G.li=-1; G.level=null; G.segBase=0; G.segs=[];
   for (let i=0;i<50;i++) G.segs.push({i,z:i*SEG,curve:0,pad:null,check:false,sprites:[],deco:[]});
@@ -1116,16 +1195,17 @@ function startEndless(){
   while (G.endlessNextZ < G.z+30000 && guard++<60) endlessGenerateStep();
   parts.length=0;
   G.mode='countdown'; G.cd=3.6; G.cdN=-1; G.fade=0; G.fadeTo=0;
-  buildHearts(); hide('mainMenu'); hide('menu'); hide('shop'); hide('settings'); hide('pause'); hide('result'); show('hud'); show('cd');
+  buildHearts(); hide('mainMenu'); hide('worlds'); hide('menu'); hide('shop'); hide('settings'); hide('pause'); hide('result'); show('hud'); show('cd');
   $('cdTitle').textContent='Endless Slide';
   $('cdHint').textContent=(window.matchMedia&&matchMedia('(pointer:coarse)').matches)?'Ziehe den Finger nach links und rechts':'Steuere mit den Pfeiltasten oder A und D';
   updateHud();
 }
-function openLevels(){ sfx.click(); buildMenu(); hide('mainMenu'); hide('shop'); hide('settings'); show('menu'); }
-function openShop(){ sfx.click(); buildShop(); hide('mainMenu'); hide('menu'); hide('settings'); show('shop'); }
-function openSettings(){ sfx.click(); buildSettings(); hide('mainMenu'); hide('menu'); hide('shop'); show('settings'); }
+function openWorlds(){ sfx.click(); buildWorlds(); hide('mainMenu'); hide('menu'); hide('shop'); hide('settings'); show('worlds'); }
+function openWorldLevels(w){ sfx.click(); buildLevelGrid(w); hide('worlds'); hide('mainMenu'); hide('shop'); hide('settings'); show('menu'); }
+function openShop(){ sfx.click(); buildShop(); hide('mainMenu'); hide('menu'); hide('worlds'); hide('settings'); show('shop'); }
+function openSettings(){ sfx.click(); buildSettings(); hide('mainMenu'); hide('menu'); hide('worlds'); hide('shop'); show('settings'); }
 function toMainMenu(){
-  stopWind(); hide('pause'); hide('result'); hide('hud'); hide('cd'); hide('menu'); hide('shop'); hide('settings'); parts.length=0;
+  stopWind(); hide('pause'); hide('result'); hide('hud'); hide('cd'); hide('menu'); hide('worlds'); hide('shop'); hide('settings'); parts.length=0;
   G.mode='menu'; G.runType='level'; loadDemo(); G.fade=1; G.fadeTo=0;
   buildMainMenu(); show('mainMenu');
 }
@@ -1153,24 +1233,25 @@ function showResult(win){
     show('result');
     return;
   }
-  G.mode='result'; const L=G.level, i=G.li, total=G.coinTotal, need=Math.ceil(total*.7);
+  G.mode='result'; const L=G.level, idx=G.li, w=Math.floor(idx/LEVELS_PER_WORLD), l=idx%LEVELS_PER_WORLD, total=G.coinTotal, need=Math.ceil(total*.7);
   hide('hud'); hide('cd');
   const s2=total===0||G.coins>=need, s3=G.hits===0;
   let stars=0, newBest=false;
-  if (win){ stars=1+(s2?1:0)+(s3?1:0); if (stars>(save.stars[i]||0)) save.stars[i]=stars; if (!save.best[i]||G.time<save.best[i]){ newBest=!!save.best[i]||true; save.best[i]=+G.time.toFixed(2); } persist(); }
-  $('resTitle').textContent=win?'Im Ziel!':'Ausgerutscht!';
-  $('resSub').textContent=win?'Rutsche '+(i+1)+': '+L.name:'Alle Herzen sind weg. Probier es gleich noch einmal.';
+  if (win){ stars=1+(s2?1:0)+(s3?1:0); if (stars>(save.stars[idx]||0)) save.stars[idx]=stars; if (!save.best[idx]||G.time<save.best[idx]){ newBest=!!save.best[idx]||true; save.best[idx]=+G.time.toFixed(2); } persist(); }
+  const nextIdx = win ? nextLevelIndex(idx) : null;
+  $('resTitle').textContent=win?(L.isBoss?'Boss besiegt!':'Im Ziel!'):'Ausgerutscht!';
+  $('resSub').textContent=win?('Welt '+(w+1)+' – Level '+(l+1)+': '+L.name+(win&&nextIdx===null?' — Alle Level gemeistert! Endless Mode ist jetzt freigeschaltet!':'')):'Alle Herzen sind weg. Probier es gleich noch einmal.';
   let st=''; for (let k=0;k<3;k++) st+=STAR.replace('<svg','<svg class="'+(k<stars?'on':'')+'"'); $('resStars').innerHTML=st;
   const row=(ok,txt)=>'<li class="'+(ok?'ok':'no')+'"><span class="mk">'+(ok?CHECK:CROSS)+'</span>'+txt+'</li>';
   $('resList').innerHTML=win
     ? row(true,'Ziel erreicht')+row(s2,'70 % der Münzen ('+G.coins+' von '+total+')')+row(s3,'Ohne Treffer')
     : row(false,'Ziel erreicht')+'<li class="no"><span class="mk">'+CROSS+'</span>Geschafft: '+Math.round(clamp((G.z-START_Z)/(G.finishZ-START_Z),0,1)*100)+' % der Strecke</li>';
-  $('resTime').innerHTML=win?('Zeit '+fmtTime(G.time)+(newBest&&save.best[i]===+G.time.toFixed(2)?' <b>Neue Bestzeit!</b>':'')):'';
+  $('resTime').innerHTML=win?('Zeit '+fmtTime(G.time)+(newBest&&save.best[idx]===+G.time.toFixed(2)?' <b>Neue Bestzeit!</b>':'')):'';
   const btns=$('resBtns'); btns.innerHTML='';
   const mk=(txt,cls,fn)=>{ const b=document.createElement('button'); b.className='btn '+cls; b.textContent=txt; b.addEventListener('click',fn); btns.appendChild(b); };
-  if (win && i+1<LEVELS.length) mk('Nächste Rutsche','',()=>startLevel(i+1));
-  mk('Nochmal',win&&i+1<LEVELS.length?'secondary':'',()=>startLevel(i));
-  mk('Levelauswahl','ghost',openLevels);
+  if (win && nextIdx!==null) mk('Nächste Rutsche','',()=>startLevel(nextIdx));
+  mk('Nochmal',win&&nextIdx!==null?'secondary':'',()=>startLevel(idx));
+  mk('Levelauswahl','ghost',()=>openWorldLevels(w));
   mk('Hauptmenü','ghost',toMainMenu);
   show('result');
 }
@@ -1179,11 +1260,12 @@ $('pauseBtn').addEventListener('click',()=>{ ensureAudio(); pauseGame(); });
 $('btnResume').addEventListener('click',resumeGame);
 $('btnRestart').addEventListener('click',()=>{ if (G.runType==='endless') startEndless(); else startLevel(G.li); });
 $('btnQuit').addEventListener('click',toMainMenu);
-$('btnPlay').addEventListener('click', openLevels);
+$('btnPlay').addEventListener('click', openWorlds);
+$('worldsBack').addEventListener('click', toMainMenu);
 $('btnEndless').addEventListener('click', startEndless);
 $('btnShop').addEventListener('click', openShop);
 $('btnSettings').addEventListener('click', openSettings);
-$('levelsBack').addEventListener('click', toMainMenu);
+$('levelsBack').addEventListener('click', openWorlds);
 $('shopBack').addEventListener('click', toMainMenu);
 $('settingsBackTop').addEventListener('click', toMainMenu);
 $('toggleSound').addEventListener('click',()=>{ save.sound=!save.sound; persist(); buildSettings(); });
@@ -1199,7 +1281,7 @@ function frame(ts){
 }
 window.addEventListener('resize',resize);
 resize(); buildMainMenu(); loadDemo();
-window.__splash = { G, save, startLevel, startEndless, update, render, showResult, LEVELS, SKINS, resize };
+window.__splash = { G, save, startLevel, startEndless, update, render, showResult, WORLDS, SKINS, resize };
 requestAnimationFrame(frame);
 })();
 </script>
